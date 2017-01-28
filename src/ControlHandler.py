@@ -60,15 +60,19 @@ class TestHandler:
             return
 
         while True:
-            _, img = capture.read()
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            targetObject = currentCascadeFile.detectMultiScale(gray, 2.2, 8)
-            for (x, y, w, h) in targetObject:
-                cv2.rectangle(img, (x, y), (x+w, y+h), (255, 0, 0), 2)
-            cv2.imshow('Press ESC to quit', img)
-            k = cv2.waitKey(30) & 0xff
-            if k == 27:
-                break
+            try:
+                _, img = capture.read()
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                targetObject = currentCascadeFile.detectMultiScale(gray, 2.2, 8)
+                for (x, y, w, h) in targetObject:
+                    cv2.rectangle(img, (x, y), (x+w, y+h), (255, 0, 0), 2)
+                cv2.imshow('Press ESC to quit', img)
+                k = cv2.waitKey(30) & 0xff
+                if k == 27:
+                    break
+            except Exception:
+                self.app.videoDetectionMessage['text'] = "No Camera Detected"
+                return
         capture.release()
         cv2.destroyAllWindows()
 
