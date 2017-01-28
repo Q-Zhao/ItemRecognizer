@@ -72,27 +72,40 @@ class TestHandler:
         capture.release()
         cv2.destroyAllWindows()
 
+    def optimalSize(self, image, size):
+        w = len(image)
+        h = len(image[0])
+        if w <= size and h <= size:
+            return (h, w)
+        max_d = max(h, w)
+        if max_d == w:
+            rate = size/w
+        else:
+            rate = size/h
+        return (int(h*rate), int(w*rate))
 
     def testImage(self, imageToBeDetectedPath):
         imageBeforeDetection = cv2.imread(imageToBeDetectedPath, 1)
         currentCascadeFile = cv2.CascadeClassifier(self.app.cascadeFilePath)
         templateImage = cv2.imread(self.app.imageToBeTrainedPath, 1)
-        imageAfterDetection = self._imageDetectAlgorithmsVersion1(imageBeforeDetection, templateImage, currentCascadeFile)
+        imageAfterDetection = self._imageDetectAlgorithm(imageBeforeDetection, templateImage, currentCascadeFile)
+        imageAfterDetection = cv2.resize(imageAfterDetection, self.optimalSize(imageAfterDetection, 600))
         cv2.imshow('Press ECS to quit', imageAfterDetection)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
-    def _imageDetectAlgorithmsVersion1(self, imageBeforeDetection, templateImage, cascadeFile):
-        # Using cascadeFile to detect potential boxes, and stored in candidates, elements of which is (x, y, w, h)
+    def _imageDetectAlgorithm(self, imageBeforeDetection, templateImage, cascadeFile):
+
+        # Using cascade Classifier to detect potential boxes, and stored in candidates, elements of which is (x, y, w, h)
         grayImageToBeDetected = cv2.cvtColor(imageBeforeDetection, cv2.COLOR_BGR2GRAY)
         candidates = list()
-        for i in [3.5, 2.5, 2, 1.5, 1.1]:
-            for j in [9, 8, 7, 6, 5]:
+        for i in [3.5, 2.5, 2, 1.5]:
+            for j in [8, 7, 6, 5]:
                 targetObject = cascadeFile.detectMultiScale(grayImageToBeDetected, i, j)
                 for (x, y, w, h) in targetObject:
                     candidates.append((x, y, w, h))
 
-        # Obtain locations of matched features in full picture. Store these locations in a list
+        # Obtain locations of matched features splots in image. Store these locations in a list
         grayTemplateImage = cv2.cvtColor(templateImage, cv2.COLOR_BGR2GRAY)
         sift = cv2.xfeatures2d.SIFT_create()
         kp1, des1 = sift.detectAndCompute(grayTemplateImage, None)
@@ -107,22 +120,49 @@ class TestHandler:
             y = int(y)
             matchedFeatureLocationList.append((x, y))
 
-         # Determine which box is the best based on feature matching numbers in it.
-        maxNum = 0
-        maxLocation = (0, 0, 0, 0)
-        for box in candidates:
-            inBoxNum = 0
-            for splotLocation in matchedFeatureLocationList:
-                if self.inBox(box, splotLocation):
-                    inBoxNum += 1
-            if inBoxNum > maxNum:
-                maxNum = inBoxNum
-                maxLocation = box
+        candidates = list(set(candidates))
+        matchedFeatureLocationList = list(set(matchedFeatureLocationList))
 
-        # draw maxLocation on Image and return new Image
-        (max_x, max_y, max_w, max_h) = maxLocation
-        cv2.rectangle(imageBeforeDetection, (max_x, max_y), (max_x + max_w, max_y + max_h), (255, 0, 0), 3)
+        # Identify boxes should be labeled in image
+        maxLocationList = []
+        initialMax = len(matchedFeatureLocationList)//50
+        maxLocationList = self.recuriveDetection(candidates, matchedFeatureLocationList, maxLocationList, startingInBoxNum=initialMax)
+
+        # Draw boxes in image
+        for maxLocation in maxLocationList:
+            (max_x, max_y, max_w, max_h) = maxLocation
+            cv2.rectangle(imageBeforeDetection, (max_x, max_y), (max_x + max_w, max_y + max_h), (255, 0, 0), 3)
         return imageBeforeDetection
+
+    def recuriveDetection(self, boxList, spotList, maxLocationList, startingInBoxNum):
+
+        maxInBoxNum = startingInBoxNum
+        maxBoxLocation = (0, 0, 0, 0)
+
+        # Determine max number located in boxList
+        for box in boxList:
+            inBoxNum = 0
+            for spot in spotList:
+                if self.inBox(box, spot):
+                    inBoxNum += 1
+            if inBoxNum > maxInBoxNum:
+                maxInBoxNum = inBoxNum
+                maxBoxLocation = box
+
+        # if max number is not > 10, item is not detected.
+        if maxInBoxNum <= startingInBoxNum:
+            return maxLocationList
+
+        # item detected because more than maxNum features matched.
+        else:
+            maxLocationList.append(maxBoxLocation)
+            boxList.remove(maxBoxLocation)
+            for spot in spotList:
+                if self.inBox(maxBoxLocation, spot):
+                    spotList.remove(spot)
+            # recursively find the rest boxList spotList combinations until maxInBoxNum < startingInBoxNum (The lower bound)
+            return self.recuriveDetection(boxList, spotList, maxLocationList, startingInBoxNum)
+
 
     def inBox(self, box, location):
         x, y, w, h = box

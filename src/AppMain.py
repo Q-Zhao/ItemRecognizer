@@ -234,9 +234,9 @@ class AppMain():
 		if self.handler == None:
 
 			return
-		try:
-			self.handler.testImage(self.imageToBeDetectedPath)
-		except Exception:
-			self.imageDetectionMessage["fg"] = "red"
-			self.imageDetectionMessage["text"] = "Invalid Cascade File"
+		# try:
+		self.handler.testImage(self.imageToBeDetectedPath)
+		# except Exception:
+		# 	self.imageDetectionMessage["fg"] = "red"
+		# 	self.imageDetectionMessage["text"] = "Invalid Cascade File"
 
